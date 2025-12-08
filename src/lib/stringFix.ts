@@ -1,5 +1,3 @@
-import type { JSONValue } from '../types/json'
-
 export const extractCoreJsonString = (raw: string): string | null => {
   if (!raw) return null
   // Try direct JSON first
