@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
+import { extractCoreJsonString } from './lib/stringFix';
 import {
   Braces,
   Trash2,
@@ -520,7 +521,7 @@ export default function App() {
     }
   };
 
-  const handleSmartFix = () => {
+  const handleJsonSmartFix = () => {
     addToHistory('智能修复前', jsonInput);
     try {
       if (syncStatus === 'error-string') {
@@ -543,6 +544,37 @@ export default function App() {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       showNotification("无法修复: " + msg);
+    }
+  };
+
+  const handleStringSmartFix = () => {
+    addToHistory('字符串智能修复前', stringInput);
+    try {
+      const raw = stringInput;
+      if (!raw.trim()) return;
+      let unescaped: string;
+      try {
+        const tmp = JSON.parse(raw);
+        unescaped = typeof tmp === 'string' ? tmp : raw;
+      } catch {
+        unescaped = JSON.parse(`"${raw}"`);
+      }
+      const core = extractCoreJsonString(unescaped);
+      if (!core) {
+        showNotification('未找到可解析的 JSON 片段');
+        return;
+      }
+      const obj = JSON.parse(core);
+      setParsedData(obj);
+      setJsonInput(JSON.stringify(obj, null, 2));
+      const minified = JSON.stringify(obj);
+      setStringInput(JSON.stringify(minified).slice(1, -1));
+      setErrorInfo(null);
+      setSyncStatus('synced');
+      showNotification('已智能修复字符串');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      showNotification('字符串修复失败: ' + msg);
     }
   };
 
@@ -657,11 +689,6 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex bg-gray-700/50 rounded-lg p-1 gap-1 mr-2">
-            <button onClick={handleSmartFix} className="flex items-center gap-1 px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition">
-              <Check size={14} /> 智能修复
-            </button>
-          </div>
 
           <button onClick={() => setShowHistory(!showHistory)} className={`p-2 rounded hover:bg-opacity-80 transition flex items-center gap-1 ${showHistory ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}>
             <History size={18} />
@@ -705,7 +732,10 @@ export default function App() {
             <div style={{ flex: `0 0 calc(${split}% )` }} className="flex-1 relative flex flex-col min-h-0">
               <div className={`px-2 py-1 text-xs font-bold flex justify-between items-center ${theme === 'dark' ? 'bg-gray-800 text-blue-400' : 'bg-gray-200 text-blue-600'}`}>
                 <span className="flex items-center gap-1"><Braces size={12} /> 标准 JSON</span>
-                <button onClick={() => { navigator.clipboard.writeText(jsonInput); showNotification("已复制 JSON") }} className="hover:text-white"><Copy size={12} /></button>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => { navigator.clipboard.writeText(jsonInput); showNotification("已复制 JSON") }} className="hover:text-white"><Copy size={12} /></button>
+                  <button onClick={handleJsonSmartFix} className="text-xs px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-white"><Check size={12} /></button>
+                </div>
               </div>
               <textarea
                 ref={jsonTextareaRef}
@@ -753,7 +783,10 @@ export default function App() {
             <div style={{ flex: `0 0 calc(${100 - split}% - 8px)` }} className="flex-1 relative flex flex-col min-h-0 border-t border-gray-700/50">
               <div className={`px-2 py-1 text-xs font-bold flex justify-between items-center ${theme === 'dark' ? 'bg-gray-800 text-purple-400' : 'bg-gray-200 text-purple-600'}`}>
                 <span className="flex items-center gap-1"><Quote size={12} /> 转义字符串 (Escaped String)</span>
-                <button onClick={() => { navigator.clipboard.writeText(stringInput); showNotification("已复制转义字符串") }} className="hover:text-white"><Copy size={12} /></button>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => { navigator.clipboard.writeText(stringInput); showNotification("已复制转义字符串") }} className="hover:text-white"><Copy size={12} /></button>
+                  <button onClick={handleStringSmartFix} className="text-xs px-2 py-0.5 rounded bg-purple-600 hover:bg-purple-500 text-white"><Check size={12} /></button>
+                </div>
               </div>
               <textarea
                 ref={stringTextareaRef}

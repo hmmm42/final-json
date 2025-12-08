@@ -6,11 +6,16 @@ export const smartParse = (input: string): JSONValue | null => {
 
   try {
     return JSON.parse(fixed) as JSONValue
-  } catch { }
+  } catch {}
 
   if (!fixed.startsWith('{') && !fixed.startsWith('[') && fixed.includes(':')) {
     fixed = `{${fixed}}`
   }
+  // Normalize single quotes in keys/strings to double quotes
+  fixed = fixed.replace(/'(.*?)'/g, '"$1"')
+  // Quote unquoted object keys
+  fixed = fixed.replace(/([\{,]\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*:\s*)/g, '$1"$2"$3')
+  // Remove trailing commas
   fixed = fixed.replace(/,\s*([\]}])/g, '$1')
 
   try {
