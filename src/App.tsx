@@ -355,6 +355,14 @@ export default function App() {
     showNotification(`已恢复: ${item.action}`);
   };
 
+  const deleteHistoryItem = (id: string) => {
+    setHistoryList((prev) => prev.filter((h) => h.id !== id));
+  };
+
+  const clearHistoryList = () => {
+    setHistoryList([]);
+  };
+
   // --- Versions & Undo ---
   const [versions, setVersions] = useState<Array<{ id: string; content: string; timestamp: number }>>(() => {
     return [{ id: 'init', content: jsonInput, timestamp: Date.now() }];
@@ -399,6 +407,14 @@ export default function App() {
   const restoreVersion = (v: { id: string; content: string; timestamp: number }) => {
     handleJsonChange(v.content);
     showNotification('已恢复版本');
+  };
+
+  const deleteVersionById = (id: string) => {
+    setVersions((prev) => prev.filter((v) => v.id !== id));
+  };
+
+  const clearAllVersions = () => {
+    setVersions([]);
   };
 
   // --- Sync Scroll Logic ---
@@ -920,6 +936,12 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <button onClick={() => setHistoryTab('ops')} className={`px-2 py-1 rounded text-xs ${historyTab === 'ops' ? 'bg-sky-600 text-white' : (theme === 'dark' ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-200')}`}>操作</button>
                 <button onClick={() => setHistoryTab('versions')} className={`px-2 py-1 rounded text-xs ${historyTab === 'versions' ? 'bg-sky-600 text-white' : (theme === 'dark' ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-200')}`}>版本</button>
+                {historyTab === 'ops' && (
+                  <button onClick={clearHistoryList} className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-200'}`}>清空操作</button>
+                )}
+                {historyTab === 'versions' && (
+                  <button onClick={clearAllVersions} className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-200'}`}>清空版本</button>
+                )}
                 <button onClick={() => setShowHistory(false)} className="text-gray-400 hover:text-white"><Minimize2 size={14} /></button>
               </div>
             </div>
@@ -934,16 +956,20 @@ export default function App() {
                   )}
                   {historyList.map((item) => (
                     <div key={item.id}
-                      onClick={() => restoreHistory(item)}
-                      className={`p-2 rounded cursor-pointer group text-xs border relative overflow-hidden transition-all ${theme === 'dark' ? 'bg-gray-700 border-gray-600 hover:border-blue-500 hover:bg-gray-600' : 'bg-gray-100 border-gray-200 hover:border-blue-500'}`}
+                      className={`p-2 rounded group text-xs border relative overflow-hidden transition-all ${theme === 'dark' ? 'bg-gray-700 border-gray-600 hover:border-blue-500 hover:bg-gray-600' : 'bg-gray-100 border-gray-200 hover:border-blue-500'}`}
                     >
                       <div className="flex justify-between items-center mb-1">
-                        <span className="text-blue-400 font-bold font-mono">
+                        <button onClick={() => restoreHistory(item)} className="text-blue-400 font-bold font-mono text-left">
                           {item.action}
-                        </span>
-                        <span className="text-[10px] opacity-50">
-                          {item.timestamp.toLocaleTimeString()}
-                        </span>
+                        </button>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] opacity-50">
+                            {item.timestamp.toLocaleTimeString()}
+                          </span>
+                          <button onClick={() => deleteHistoryItem(item.id)} className="text-red-400 hover:text-red-200">
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
                       </div>
                       <div className="opacity-60 truncate font-mono text-[10px] bg-black/20 p-1 rounded">
                         {item.preview}
@@ -961,16 +987,20 @@ export default function App() {
                   )}
                   {versions.map((v, idx) => (
                     <div key={v.id}
-                      onClick={() => restoreVersion(v)}
-                      className={`p-2 rounded cursor-pointer group text-xs border relative overflow-hidden transition-all ${theme === 'dark' ? 'bg-gray-700 border-gray-600 hover:border-blue-500 hover:bg-gray-600' : 'bg-gray-100 border-gray-200 hover:border-blue-500'}`}
+                      className={`p-2 rounded group text-xs border relative overflow-hidden transition-all ${theme === 'dark' ? 'bg-gray-700 border-gray-600 hover:border-blue-500 hover:bg-gray-600' : 'bg-gray-100 border-gray-200 hover:border-blue-500'}`}
                     >
                       <div className="flex justify-between items-center mb-1">
-                        <span className="text-purple-400 font-bold font-mono">
+                        <button onClick={() => restoreVersion(v)} className="text-purple-400 font-bold font-mono text-left">
                           版本 #{idx}
-                        </span>
-                        <span className="text-[10px] opacity-50">
-                          {new Date(v.timestamp).toLocaleTimeString()}
-                        </span>
+                        </button>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] opacity-50">
+                            {new Date(v.timestamp).toLocaleTimeString()}
+                          </span>
+                          <button onClick={() => deleteVersionById(v.id)} className="text-red-400 hover:text-red-200">
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
                       </div>
                       <div className="opacity-60 truncate font-mono text-[10px] bg-black/20 p-1 rounded">
                         {(v.content || '').slice(0, 40).replace(/\n/g, ' ')}...
