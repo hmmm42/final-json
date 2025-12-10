@@ -22,7 +22,9 @@ import {
   Sun,
   Moon,
   Activity,
-  RotateCcw
+  RotateCcw,
+  Plus,
+  X
 } from 'lucide-react';
 
 // --- Helper Functions ---
@@ -132,7 +134,10 @@ const JsonNode = ({
     if (value === null) return <span className="text-gray-400">null</span>;
     if (typeof value === 'boolean') return <span className="text-purple-400 font-bold">{value.toString()}</span>;
     if (typeof value === 'number') return <span className="text-blue-400">{value}</span>;
-    if (typeof value === 'string') return <span className="text-green-400">"{value}"</span>;
+    if (typeof value === 'string') {
+      const strClass = theme === 'dark' ? 'text-emerald-300' : 'text-teal-700';
+      return <span className={strClass}>"{value}"</span>;
+    }
     return null;
   };
 
@@ -144,6 +149,21 @@ const JsonNode = ({
       onClick={() => onSelect(path)}
     >
       <div className={`flex items-center group py-0.5 ${isSelected ? (theme === 'dark' ? 'bg-sky-500/10 border border-sky-500/30 rounded' : 'bg-sky-500/10 border border-sky-500/30 rounded') : (theme === 'dark' ? 'hover:bg-gray-700/20' : 'hover:bg-gray-200')}`}>
+        <div className="flex items-center gap-1 pr-2 opacity-70 hover:opacity-100">
+          {isStringifiedJson && (
+            <button onClick={handleParseString} title="反序列化" className="p-1 rounded text-green-500 hover:bg-green-900/30">
+              <PackageOpen size={14} />
+            </button>
+          )}
+          {isExpandable && (
+            <button onClick={handleStringify} title="序列化" className="p-1 rounded text-yellow-500 hover:bg-yellow-900/30">
+              <Package size={14} />
+            </button>
+          )}
+          <button onClick={handleDelete} title="删除" className="p-1 rounded text-red-500 hover:bg-red-900/30">
+            <Trash2 size={14} />
+          </button>
+        </div>
         {isExpandable ? (
           <button onClick={handleToggle} className="mr-1 text-gray-500 hover:text-white w-4 text-center">
             {expanded ? '-' : '+'}
@@ -166,35 +186,7 @@ const JsonNode = ({
           renderValue()
         )}
 
-        <div className="ml-auto hidden group-hover:flex items-center gap-2 pr-2">
-          {isStringifiedJson && (
-            <button
-              onClick={handleParseString}
-              title="反序列化 (Unpack JSON String)"
-              className="p-1 hover:bg-green-900/50 text-green-500 rounded"
-            >
-              <PackageOpen size={14} />
-            </button>
-          )}
 
-          {isExpandable && (
-            <button
-              onClick={handleStringify}
-              title="序列化 (Pack to String)"
-              className="p-1 hover:bg-yellow-900/50 text-yellow-500 rounded"
-            >
-              <Package size={14} />
-            </button>
-          )}
-
-          <button
-            onClick={handleDelete}
-            title="删除节点"
-            className="p-1 hover:bg-red-900/50 text-red-500 rounded"
-          >
-            <Trash2 size={14} />
-          </button>
-        </div>
       </div>
 
       {isExpandable && expanded && (
@@ -242,8 +234,37 @@ const JsonNode = ({
 
 
 export default function App() {
-  const [jsonInput, setJsonInput] = useState('{\n  "key": {\n    "test": 1,\n    "jsonStr": "{\\\"inner\\\": true}"\n  }\n}');
-  const [stringInput, setStringInput] = useState('"{\\\"key\\\":{\\\"test\\\":1,\\\"jsonStr\\\":\\\"{\\\\\\\"inner\\\\\\\": true}\\\"}}"');
+  const [tabs, setTabs] = useState<Array<{ id: string; title: string }>>(() => {
+    try {
+      const raw = localStorage.getItem('final-json:tabs');
+      if (raw) return JSON.parse(raw);
+    } catch { }
+    const initial = [{ id: 'tab-1', title: 'Tab 1' }];
+    try { localStorage.setItem('final-json:tabs', JSON.stringify(initial)); } catch { }
+    return initial;
+  });
+  const [currentTabId, setCurrentTabId] = useState<string>(() => {
+    try {
+      const raw = localStorage.getItem('final-json:currentTab');
+      if (raw) return raw;
+    } catch { }
+    return 'tab-1';
+  });
+  const key = (base: string) => `${base}:${currentTabId}`;
+  const [jsonInput, setJsonInput] = useState(() => {
+    try {
+      const raw = localStorage.getItem(key('final-json:json'));
+      if (raw) return raw;
+    } catch { }
+    return '';
+  });
+  const [stringInput, setStringInput] = useState(() => {
+    try {
+      const raw = localStorage.getItem(key('final-json:string'));
+      if (raw) return raw;
+    } catch { }
+    return '';
+  });
 
   const [parsedData, setParsedData] = useState<JSONValue | null>(null);
   const [errorInfo, setErrorInfo] = useState<ErrorInfo | null>(null);
@@ -298,24 +319,31 @@ export default function App() {
     }
   }, []);
 
-  const HISTORY_KEY = 'final-json:history';
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(HISTORY_KEY);
+      const raw = localStorage.getItem(key('final-json:history'));
       if (raw) {
         const arr = JSON.parse(raw) as Array<{ id: string; action: string; content: string; timestamp: number; preview: string }>;
         const restored = arr.map((it) => ({ ...it, timestamp: new Date(it.timestamp) })) as HistoryItem[];
         setHistoryList(restored);
+      } else {
+        setHistoryList([]);
       }
-    } catch { }
-  }, []);
+    } catch { setHistoryList([]); }
+  }, [currentTabId]);
 
   useEffect(() => {
     try {
       const serializable = historyList.map((it) => ({ ...it, timestamp: it.timestamp.getTime() }));
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(serializable));
+      localStorage.setItem(key('final-json:history'), JSON.stringify(serializable));
     } catch { }
-  }, [historyList]);
+  }, [historyList, currentTabId]);
+  useEffect(() => {
+    try { localStorage.setItem(key('final-json:json'), jsonInput); } catch { }
+  }, [jsonInput, currentTabId]);
+  useEffect(() => {
+    try { localStorage.setItem(key('final-json:string'), stringInput); } catch { }
+  }, [stringInput, currentTabId]);
   useEffect(() => {
     try { localStorage.setItem('final-json:hsplit', String(hsplit)); } catch { }
   }, [hsplit]);
@@ -391,18 +419,58 @@ export default function App() {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem('final-json:versions');
+      const raw = localStorage.getItem(key('final-json:versions'));
       if (raw) {
         const arr = JSON.parse(raw) as Array<{ id: string; content: string; timestamp: number }>;
-        if (arr.length > 0) setVersions(arr);
+        setVersions(arr);
+      } else {
+        setVersions([{ id: 'init', content: jsonInput, timestamp: Date.now() }]);
       }
-    } catch { }
-  }, []);
+    } catch { setVersions([{ id: 'init', content: jsonInput, timestamp: Date.now() }]); }
+  }, [currentTabId]);
   useEffect(() => {
     try {
-      localStorage.setItem('final-json:versions', JSON.stringify(versions));
+      localStorage.setItem(key('final-json:versions'), JSON.stringify(versions));
     } catch { }
-  }, [versions]);
+  }, [versions, currentTabId]);
+
+  useEffect(() => {
+    try { localStorage.setItem('final-json:currentTab', currentTabId); } catch { }
+  }, [currentTabId]);
+
+  useEffect(() => {
+    try { localStorage.setItem('final-json:tabs', JSON.stringify(tabs)); } catch { }
+  }, [tabs]);
+
+  const addTab = () => {
+    const id = `tab-${Date.now()}`;
+    const title = `Tab ${tabs.length + 1}`;
+    const next = [...tabs, { id, title }];
+    setTabs(next);
+    setCurrentTabId(id);
+    // initialize storage for new tab
+    try {
+      localStorage.setItem(key('final-json:json'), '{\n  "key": {\n    "test": 1\n  }\n}');
+      localStorage.setItem(key('final-json:string'), '');
+      localStorage.setItem(key('final-json:history'), JSON.stringify([]));
+      localStorage.setItem(key('final-json:versions'), JSON.stringify([{ id: 'init', content: '{\n  "key": {\n    "test": 1\n  }\n}', timestamp: Date.now() }]));
+    } catch { }
+  };
+
+  const closeTab = (id: string) => {
+    const next = tabs.filter(t => t.id !== id);
+    setTabs(next.length ? next : [{ id: 'tab-1', title: 'Tab 1' }]);
+    if (currentTabId === id) {
+      setCurrentTabId((next[0] && next[0].id) || 'tab-1');
+    }
+    // cleanup storage
+    try {
+      localStorage.removeItem(`final-json:json:${id}`);
+      localStorage.removeItem(`final-json:string:${id}`);
+      localStorage.removeItem(`final-json:history:${id}`);
+      localStorage.removeItem(`final-json:versions:${id}`);
+    } catch { }
+  };
 
   const restoreVersion = (v: { id: string; content: string; timestamp: number }) => {
     handleJsonChange(v.content);
@@ -699,9 +767,20 @@ export default function App() {
 
       {/* Header */}
       <header className={`h-14 border-b flex items-center justify-between px-4 shrink-0 ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'}`}>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 overflow-hidden">
           <Wrench className="text-blue-500" />
-          <h1 className="font-bold text-lg hidden sm:block">JSON 全能工匠</h1>
+          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+            {tabs.map(t => (
+              <div key={t.id} className={`flex items-center px-2 py-1 rounded text-xs mr-1 ${t.id === currentTabId ? 'bg-sky-600 text-white' : (theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700')}`}
+                onClick={() => setCurrentTabId(t.id)}>
+                <span className="mr-1 truncate max-w-[120px]">{t.title}</span>
+                <button onClick={() => closeTab(t.id)} className="opacity-70 hover:opacity-100"><X size={12} /></button>
+              </div>
+            ))}
+            <button onClick={addTab} className={`p-1 rounded ${theme === 'dark' ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-200'}`}>
+              <Plus size={14} />
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
