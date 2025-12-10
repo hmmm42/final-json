@@ -149,7 +149,7 @@ const JsonNode = ({
       onClick={() => onSelect(path)}
     >
       <div className={`flex items-center group py-0.5 ${isSelected ? (theme === 'dark' ? 'bg-sky-500/10 border border-sky-500/30 rounded' : 'bg-sky-500/10 border border-sky-500/30 rounded') : (theme === 'dark' ? 'hover:bg-gray-700/20' : 'hover:bg-gray-200')}`}>
-        <div className="flex items-center gap-1 pr-2 opacity-70 hover:opacity-100">
+        <div className="hidden group-hover:flex items-center gap-1 pr-2">
           {isStringifiedJson && (
             <button onClick={handleParseString} title="反序列化" className="p-1 rounded text-green-500 hover:bg-green-900/30">
               <PackageOpen size={14} />
