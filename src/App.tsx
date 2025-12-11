@@ -149,7 +149,7 @@ const JsonNode = ({
       onClick={() => onSelect(path)}
     >
       <div className={`flex items-center group py-0.5 ${isSelected ? (theme === 'dark' ? 'bg-sky-500/10 border border-sky-500/30 rounded' : 'bg-sky-500/10 border border-sky-500/30 rounded') : (theme === 'dark' ? 'hover:bg-gray-700/20' : 'hover:bg-gray-200')}`}>
-        <div className="hidden group-hover:flex items-center gap-1 pr-2">
+        <div className="flex items-center gap-1 pr-2 invisible group-hover:visible">
           {isStringifiedJson && (
             <button onClick={handleParseString} title="反序列化" className="p-1 rounded text-green-500 hover:bg-green-900/30">
               <PackageOpen size={14} />
@@ -250,7 +250,32 @@ export default function App() {
     } catch { }
     return 'tab-1';
   });
+  const [editingTabId, setEditingTabId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState<string>('');
   const key = (base: string) => `${base}:${currentTabId}`;
+  const keyForId = (base: string, id: string) => `${base}:${id}`;
+  useEffect(() => {
+    try {
+      const rawJson = localStorage.getItem(key('final-json:json')) ?? '';
+      const rawStr = localStorage.getItem(key('final-json:string')) ?? '';
+      setJsonInput(rawJson);
+      setStringInput(rawStr);
+      if (rawJson.trim()) {
+        try { setParsedData(JSON.parse(rawJson)); setSyncStatus('synced'); setErrorInfo(null); }
+        catch { setParsedData(null); setSyncStatus('error-json'); }
+      } else {
+        setParsedData(null);
+        setSyncStatus('synced');
+        setErrorInfo(null);
+      }
+    } catch {
+      setJsonInput('');
+      setStringInput('');
+      setParsedData(null);
+      setSyncStatus('synced');
+      setErrorInfo(null);
+    }
+  }, [currentTabId]);
   const [jsonInput, setJsonInput] = useState(() => {
     try {
       const raw = localStorage.getItem(key('final-json:json'));
@@ -450,10 +475,10 @@ export default function App() {
     setCurrentTabId(id);
     // initialize storage for new tab
     try {
-      localStorage.setItem(key('final-json:json'), '{\n  "key": {\n    "test": 1\n  }\n}');
-      localStorage.setItem(key('final-json:string'), '');
-      localStorage.setItem(key('final-json:history'), JSON.stringify([]));
-      localStorage.setItem(key('final-json:versions'), JSON.stringify([{ id: 'init', content: '{\n  "key": {\n    "test": 1\n  }\n}', timestamp: Date.now() }]));
+      localStorage.setItem(keyForId('final-json:json', id), '');
+      localStorage.setItem(keyForId('final-json:string', id), '');
+      localStorage.setItem(keyForId('final-json:history', id), JSON.stringify([]));
+      localStorage.setItem(keyForId('final-json:versions', id), JSON.stringify([]));
     } catch { }
   };
 
@@ -470,6 +495,24 @@ export default function App() {
       localStorage.removeItem(`final-json:history:${id}`);
       localStorage.removeItem(`final-json:versions:${id}`);
     } catch { }
+  };
+
+  const startRename = (id: string, title: string) => {
+    setEditingTabId(id);
+    setEditingTitle(title);
+  };
+
+  const commitRename = () => {
+    if (!editingTabId) return;
+    const title = editingTitle.trim() || 'Untitled';
+    setTabs(prev => prev.map(t => t.id === editingTabId ? { ...t, title } : t));
+    setEditingTabId(null);
+    setEditingTitle('');
+  };
+
+  const cancelRename = () => {
+    setEditingTabId(null);
+    setEditingTitle('');
   };
 
   const restoreVersion = (v: { id: string; content: string; timestamp: number }) => {
@@ -772,9 +815,21 @@ export default function App() {
           <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
             {tabs.map(t => (
               <div key={t.id} className={`flex items-center px-2 py-1 rounded text-xs mr-1 ${t.id === currentTabId ? 'bg-sky-600 text-white' : (theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700')}`}
-                onClick={() => setCurrentTabId(t.id)}>
-                <span className="mr-1 truncate max-w-[120px]">{t.title}</span>
-                <button onClick={() => closeTab(t.id)} className="opacity-70 hover:opacity-100"><X size={12} /></button>
+              >
+                {editingTabId === t.id ? (
+                  <input
+                    autoFocus
+                    value={editingTitle}
+                    onChange={(e) => setEditingTitle(e.target.value)}
+                    onBlur={commitRename}
+                    onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') cancelRename(); }}
+                    className={`px-1 py-0.5 rounded text-xs ${t.id === currentTabId ? 'bg-white text-gray-800' : 'bg-white text-gray-800'}`}
+                    style={{ width: '120px' }}
+                  />
+                ) : (
+                  <button className="mr-1 truncate max-w-[120px] text-left" onClick={() => setCurrentTabId(t.id)} onDoubleClick={() => startRename(t.id, t.title)}>{t.title}</button>
+                )}
+                <button onClick={() => closeTab(t.id)} className="opacity-70 hover:opacity-100 ml-1"><X size={12} /></button>
               </div>
             ))}
             <button onClick={addTab} className={`p-1 rounded ${theme === 'dark' ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-200'}`}>
