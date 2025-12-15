@@ -91,7 +91,8 @@ const JsonNode = ({
   level = 0,
   theme,
   selectedPath,
-  onSelect
+  onSelect,
+  searchQuery
 }: {
   keyName?: string;
   value: JSONValue;
@@ -102,6 +103,7 @@ const JsonNode = ({
   theme: 'dark' | 'light';
   selectedPath: Path | null;
   onSelect: (path: Path) => void;
+  searchQuery?: string;
 }) => {
   const [expanded, setExpanded] = useState(true);
   const type = getType(value);
@@ -130,21 +132,19 @@ const JsonNode = ({
     }
   };
 
-  const renderValue = () => {
-    if (value === null) return <span className="text-gray-400">null</span>;
-    if (typeof value === 'boolean') return <span className="text-purple-400 font-bold">{value.toString()}</span>;
-    if (typeof value === 'number') return <span className="text-blue-400">{value}</span>;
-    if (typeof value === 'string') {
-      const strClass = theme === 'dark' ? 'text-emerald-300' : 'text-teal-700';
-      return <span className={strClass}>"{value}"</span>;
-    }
-    return null;
-  };
+  // primitive value render is inlined to support search highlight
 
   const isSelected = selectedPath && JSON.stringify(selectedPath) === JSON.stringify(path);
   const keyColor = theme === 'dark' ? 'text-cyan-300' : 'text-cyan-700';
+  const q = (searchQuery || '').toLowerCase();
+  const pathStr = path.join('.');
+  const keyHit = !!(q && keyName && keyName.toLowerCase().includes(q));
+  const valueHit = !!(q && (
+    value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+  ) && String(value).toLowerCase().includes(q));
   return (
     <div
+      data-path={pathStr}
       className={`pl-4 ${level > 0 ? (theme === 'dark' ? 'border-l border-gray-700/30' : 'border-l border-gray-300/40') : ''} font-mono text-sm`}
       onClick={() => onSelect(path)}
     >
@@ -176,7 +176,7 @@ const JsonNode = ({
 
         <div className="flex-1 min-w-0">
           {keyName !== undefined && (
-            <span className={`mr-2 ${keyColor}`}>"{keyName}":</span>
+            <span className={`mr-2 ${keyColor} ${keyHit ? 'bg-yellow-300/40 px-1 rounded' : ''}`}>"{keyName}":</span>
           )}
 
           {isExpandable ? (
@@ -186,7 +186,12 @@ const JsonNode = ({
               {!expanded && <span className="ml-2 opacity-50">...</span>}
             </span>
           ) : (
-            <span className="break-words whitespace-pre-wrap inline-block max-w-full">{renderValue()}</span>
+            <span className={`break-words whitespace-pre-wrap inline-block max-w-full ${valueHit ? 'bg-yellow-300/40 px-1 rounded' : ''}`}>
+              {value === null && <span className="text-gray-400">null</span>}
+              {typeof value === 'boolean' && <span className="text-purple-400 font-bold">{String(value)}</span>}
+              {typeof value === 'number' && <span className="text-blue-400">{String(value)}</span>}
+              {typeof value === 'string' && <span className={theme === 'dark' ? 'text-emerald-300' : 'text-teal-700'}>"{value as string}"</span>}
+            </span>
           )}
         </div>
 
@@ -207,6 +212,7 @@ const JsonNode = ({
                 onSelect={onSelect}
                 onDelete={onDelete}
                 onUpdate={onUpdate}
+                searchQuery={searchQuery}
                 level={level + 1}
               />
             ))
@@ -221,6 +227,7 @@ const JsonNode = ({
                 onSelect={onSelect}
                 onDelete={onDelete}
                 onUpdate={onUpdate}
+                searchQuery={searchQuery}
                 level={level + 1}
               />
             ))}
@@ -338,6 +345,29 @@ export default function App() {
   const scrollLock = useRef<ScrollSource | null>(null);
   const scrollTimeoutRef = useRef<number | null>(null);
 
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchIndex, setSearchIndex] = useState(0);
+  const [searchMatches, setSearchMatches] = useState<Array<{ type: 'json' | 'string' | 'node'; pos?: number; path?: string }>>([]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const k = e.key.toLowerCase();
+      if ((e.metaKey || e.ctrlKey) && k === 'f') {
+        e.preventDefault();
+        setSearchOpen(true);
+      } else if (searchOpen && k === 'escape') {
+        e.preventDefault();
+        setSearchOpen(false);
+      } else if (searchOpen && k === 'enter') {
+        e.preventDefault();
+        if (e.shiftKey) prevMatch(); else nextMatch();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [searchOpen, searchIndex, searchMatches]);
+
   // --- Core Logic: Initialize ---
   useEffect(() => {
     try {
@@ -445,6 +475,51 @@ export default function App() {
       return next;
     });
   };
+
+  useEffect(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const matches: Array<{ type: 'node'; path: string }> = [];
+    if (q) {
+      const walk = (val: JSONValue, path: Path) => {
+        const t = getType(val);
+        if (t === 'array') {
+          (val as JSONArray).forEach((v, i) => {
+            if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean' || v === null) {
+              if (String(v).toLowerCase().includes(q)) matches.push({ type: 'node', path: [...path, i].join('.') });
+            } else {
+              walk(v as JSONValue, [...path, i]);
+            }
+          });
+        } else if (t === 'object') {
+          Object.entries(val as JSONObject).forEach(([k, v]) => {
+            if (k.toLowerCase().includes(q)) matches.push({ type: 'node', path: [...path, k].join('.') });
+            if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean' || v === null) {
+              if (String(v).toLowerCase().includes(q)) matches.push({ type: 'node', path: [...path, k].join('.') });
+            } else {
+              walk(v as JSONValue, [...path, k]);
+            }
+          });
+        }
+      };
+      if (parsedData && (Array.isArray(parsedData) || typeof parsedData === 'object')) walk(parsedData, []);
+    }
+    setSearchMatches(matches as any);
+    setSearchIndex(0);
+  }, [searchQuery, parsedData]);
+
+  const goToMatch = (index: number) => {
+    const q = searchQuery.trim();
+    if (!q || searchMatches.length === 0) return;
+    const i = ((index % searchMatches.length) + searchMatches.length) % searchMatches.length;
+    const m = searchMatches[i];
+    setSearchIndex(i);
+    if (m.path) {
+      const el = document.querySelector(`[data-path="${m.path}"]`);
+      if (el) (el as HTMLElement).scrollIntoView({ block: 'center' });
+    }
+  };
+  const nextMatch = () => goToMatch(searchIndex + 1);
+  const prevMatch = () => goToMatch(searchIndex - 1);
 
   useEffect(() => {
     try {
@@ -827,7 +902,7 @@ export default function App() {
                     onChange={(e) => setEditingTitle(e.target.value)}
                     onBlur={commitRename}
                     onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') cancelRename(); }}
-                    className={`px-1 py-0.5 rounded text-xs ${t.id === currentTabId ? 'bg-white text-gray-800' : 'bg-white text-gray-800'}`}
+                    className={`px-1 py-0.5 rounded text-xs ${t.id === currentTabId ? 'bg-white text-gray-800' : 'bg白 text-gray-800'}`}
                     style={{ width: '120px' }}
                   />
                 ) : (
@@ -861,6 +936,22 @@ export default function App() {
           <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 rounded text-gray-400 hover:text-white hover:bg-gray-700 transition">
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
+          {searchOpen && (
+            <div className={`ml-2 flex items-center gap-2 px-2 py-1 rounded ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-gray-200 text-gray-800'}`}>
+              <input
+                autoFocus
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { if (e.shiftKey) prevMatch(); else nextMatch(); } if (e.key === 'Escape') setSearchOpen(false); }}
+                placeholder="搜索..."
+                className={`px-2 py-1 rounded text-sm ${theme === 'dark' ? 'bg-gray-700 text-white' : 'bg-white text-gray-800'}`}
+              />
+              <span className="text-xs opacity-80">{searchMatches.length === 0 ? '0 命中' : `${searchIndex + 1}/${searchMatches.length}`}</span>
+              <button onClick={prevMatch} className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'bg-gray-700' : 'bg-white'}`}>上一条</button>
+              <button onClick={nextMatch} className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'bg-gray-700' : 'bg-white'}`}>下一条</button>
+              <button onClick={() => setSearchOpen(false)} className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'bg-gray-700' : 'bg-white'}`}>关闭</button>
+            </div>
+          )}
         </div>
       </header>
 
@@ -1034,6 +1125,7 @@ export default function App() {
                         onSelect={(p) => setSelectedPath(p)}
                         onDelete={(p) => updateDataAtPath(p, 'delete', null, '删除节点')}
                         onUpdate={(p, val, name) => updateDataAtPath(p, 'update', val, name)}
+                        searchQuery={searchQuery}
                       />
                     ))
                     : Object.entries(parsedData as JSONObject).map(([k, v]) => (
@@ -1047,6 +1139,7 @@ export default function App() {
                         onSelect={(p) => setSelectedPath(p)}
                         onDelete={(p) => updateDataAtPath(p, 'delete', null, '删除节点')}
                         onUpdate={(p, val, name) => updateDataAtPath(p, 'update', val, name)}
+                        searchQuery={searchQuery}
                       />
                     ))
                 ) : (
