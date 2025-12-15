@@ -148,43 +148,47 @@ const JsonNode = ({
       className={`pl-4 ${level > 0 ? (theme === 'dark' ? 'border-l border-gray-700/30' : 'border-l border-gray-300/40') : ''} font-mono text-sm`}
       onClick={() => onSelect(path)}
     >
-      <div className={`flex items-center group py-0.5 ${isSelected ? (theme === 'dark' ? 'bg-sky-500/10 border border-sky-500/30 rounded' : 'bg-sky-500/10 border border-sky-500/30 rounded') : (theme === 'dark' ? 'hover:bg-gray-700/20' : 'hover:bg-gray-200')}`}>
-        <div className={`w-16 sticky left-0 flex items-center gap-1 pl-1 ${theme === 'dark' ? 'bg-gray-900/70' : 'bg-white/70'} backdrop-blur-sm rounded-sm invisible group-hover:visible`}>
-          {isStringifiedJson && (
-            <button onClick={handleParseString} title="反序列化" className="p-1 rounded text-green-500 hover:bg-green-900/30">
-              <PackageOpen size={14} />
+      <div className={`flex items-start group py-0.5 ${isSelected ? (theme === 'dark' ? 'bg-sky-500/10 border border-sky-500/30 rounded' : 'bg-sky-500/10 border border-sky-500/30 rounded') : (theme === 'dark' ? 'hover:bg-gray-700/20' : 'hover:bg-gray-200')}`}>
+        <div className="flex items-center gap-1 w-20 shrink-0">
+          <div className="flex items-center gap-1 invisible group-hover:visible">
+            {isStringifiedJson && (
+              <button onClick={handleParseString} title="反序列化" className="p-1 rounded text-green-500 hover:bg-green-900/30">
+                <PackageOpen size={14} />
+              </button>
+            )}
+            {isExpandable && (
+              <button onClick={handleStringify} title="序列化" className="p-1 rounded text-yellow-500 hover:bg-yellow-900/30">
+                <Package size={14} />
+              </button>
+            )}
+            <button onClick={handleDelete} title="删除" className="p-1 rounded text-red-500 hover:bg-red-900/30">
+              <Trash2 size={14} />
             </button>
-          )}
-          {isExpandable && (
-            <button onClick={handleStringify} title="序列化" className="p-1 rounded text-yellow-500 hover:bg-yellow-900/30">
-              <Package size={14} />
+          </div>
+          {isExpandable ? (
+            <button onClick={handleToggle} className="text-gray-500 hover:text-white w-4 text-center">
+              {expanded ? '-' : '+'}
             </button>
+          ) : (
+            <span className="w-4 inline-block"></span>
           )}
-          <button onClick={handleDelete} title="删除" className="p-1 rounded text-red-500 hover:bg-red-900/30">
-            <Trash2 size={14} />
-          </button>
         </div>
-        {isExpandable ? (
-          <button onClick={handleToggle} className="mr-1 text-gray-500 hover:text-white w-4 text-center">
-            {expanded ? '-' : '+'}
-          </button>
-        ) : (
-          <span className="w-5 inline-block"></span>
-        )}
 
-        {keyName !== undefined && (
-          <span className={`mr-2 ${keyColor}`}>"{keyName}":</span>
-        )}
+        <div className="flex-1 min-w-0">
+          {keyName !== undefined && (
+            <span className={`mr-2 ${keyColor}`}>"{keyName}":</span>
+          )}
 
-        {isExpandable ? (
-          <span className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'} text-xs flex items-center gap-2`}>
-            <span className="text-gray-500">-</span>
-            {type === 'array' ? `Array[${(value as JSONArray).length}]` : `Object{${Object.keys(value as JSONObject).length}}`}
-            {!expanded && <span className="ml-2 opacity-50">...</span>}
-          </span>
-        ) : (
-          renderValue()
-        )}
+          {isExpandable ? (
+            <span className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'} text-xs inline-flex items-center gap-2`}>
+              <span className="text-gray-500">-</span>
+              {type === 'array' ? `Array[${(value as JSONArray).length}]` : `Object{${Object.keys(value as JSONObject).length}}`}
+              {!expanded && <span className="ml-2 opacity-50">...</span>}
+            </span>
+          ) : (
+            <span className="break-words whitespace-pre-wrap inline-block max-w-full">{renderValue()}</span>
+          )}
+        </div>
 
 
       </div>
